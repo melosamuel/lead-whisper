@@ -14,9 +14,9 @@ def run(path: str) -> dict:
     try:
         df = pd.read_csv(path)
     except FileNotFoundError:
-        raise Exception(f"\nFile Not Found: {path}\n")
+        raise Exception(f"File Not Found: {path}")
     except EmptyDataError:
-        raise Exception(f"\nEmpty File: {path}\n")
+        raise Exception(f"Empty File: {path}")
 
     contacts = {}
 
@@ -27,6 +27,6 @@ def run(path: str) -> dict:
 
             contacts[name] = number
     except KeyError:
-        raise Exception(f"\nERROR: The .csv file must have the following keys: Name and Number\n")
+        raise Exception(f"ERROR: The .csv file must have the following keys: Name and Number")
 
     return contacts

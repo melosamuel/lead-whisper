@@ -1,8 +1,9 @@
+from datetime import datetime
 from pandas import DataFrame
+import logging
 import pandas as pd
 import pywhatkit as kit
 import random
-import re
 import time
 
 class NotAValidContactError(Exception):
@@ -11,7 +12,7 @@ class NotAValidContactError(Exception):
     def __init__(self, message):
         super().__init__(message)
 
-def add_lead_to_xlsx(name: str, number: str, xlsx: DataFrame):
+def add_lead_to_xlsx(name: str, phone_number: str, xlsx: DataFrame):
     """Add the name and number of the contact to the excel file
 
     Args:
@@ -20,12 +21,51 @@ def add_lead_to_xlsx(name: str, number: str, xlsx: DataFrame):
         xlsx (DataFrame): The excel file
     """
 
-    new_row = pd.DataFrame({'A': [name], 'B': [number]})
+    PATH = "./files/feedback.xlsx"
+
+    new_row = pd.DataFrame({'Name': [name], 'Number': [phone_number], 'Send Message': [True]})
     df = pd.concat([xlsx, new_row], ignore_index=True)
 
-    df.to_excel()
+    df.to_excel(PATH, index=False)
 
-def send_message(custom_messages: list, name: str, number: str):
+    logging.INFO("Lead added to excel")
+
+def get_daytime() -> str:
+    """Returns the daytime
+
+    Returns:
+        str: The daytime ('morning', 'afternoon' or 'evening')
+    """
+
+    current_hour = datetime.now().hour
+
+    if 5 <= current_hour < 12:
+        return "morning"
+    elif 12 <= current_hour < 18:
+        return "afternoon"
+    else:
+        return "evening"
+
+def filter_messages_by_daytime(messages: list) -> list:
+    """Returns only the messages that fits the daytime
+
+    Args:
+        messages (list): A list with all custom messages
+
+    Returns:
+        list: Filtered messages
+    """
+
+    daytime = get_daytime()
+    filtered_messsages = []
+
+    for message in messages:
+        if message.lower().startswith("any") or daytime in message.lower():
+            filtered_messsages.append(message.strip().split(':', 1))
+
+    return filtered_messsages
+
+def send_message(custom_messages: list, name: str, phone_number: str):
     """Whatsapp the lead a custom message
 
     Args:
@@ -35,46 +75,22 @@ def send_message(custom_messages: list, name: str, number: str):
     """
 
     first_name = name.split()[0]
-    raw_message = random.choice(custom_messages)
+    
+    filtered_messages = filter_messages_by_daytime(custom_messages)
+
+    raw_message = random.choice(filtered_messages)[1]
     message = raw_message.replace(r'{nome}', first_name)
 
     try:
-        kit.sendwhatmsg_instantly(number, message, 15, tab_close=True)
-        print(f"\n### Message sent to {name}")
+        kit.sendwhatmsg_instantly(phone_number, message, 15, tab_close=True)
+        logging.INFO(f"Message sent to {name}")
 
     except Exception as e:
-        print(f"\n### Error while trying to send message to {name}")
+        logging.ERROR(f"Error while trying to send message to {name}")
     finally:
         time.sleep(30)
 
-def is_phone_number(data: str) -> bool:
-    """Tell if the given data is a valid phone number or not
-
-    Args:
-        data (str): The possible phone number
-
-    Returns:
-        bool: Returns True if the given data is a valid phone number, or False otherwise
-    """
-
-    phone_regex = r'^\+?\d{1,3}?\s?\(?\d{1,4}?\)?[\s.-]?\d{1,4}[\s.-]?\d{1,4}[\s.-]?\d{1,9}$'
-
-    return re.match(phone_regex, data) is not None
-
-def is_email(data: str) -> bool:
-    """Tell if the given data is a valid email or not
-
-    Args:
-        data (str): The possible email
-
-    Returns:
-        bool: Returns True if the given data is a valid email, or False otherwise
-    """
-
-    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(email_regex, data) is not None
-
-def verify_existing_lead(name: str, number: str, xlsx: DataFrame) -> bool:
+def verify_existing_lead(name: str, phone_number: str, xlsx: DataFrame) -> bool:
     """Verifies if the name and number are already registered in the xlsx file
 
     Args:
@@ -86,30 +102,32 @@ def verify_existing_lead(name: str, number: str, xlsx: DataFrame) -> bool:
         bool: Returns True if the name and number exists in the excel file, or False otherwise
     """
 
-    existing_lead = (name, number)
+    existing_lead = (name, phone_number)
 
-    for index, row in xlsx.iterrows():
+    for _, row in xlsx.iterrows():
         name = row['Name']
         contact = row['Number']
-
-        if not (is_phone_number(contact) or is_email(contact)): 
-            print(f"\nThe contact at line {index} has not a valid contact number or email! Please, verify and try again!\n")
         
         combination = (name, contact)
 
         if existing_lead == combination:
-            return True
+            can_send_message = row['Send Message']
+
+            return True, can_send_message
         
-    return False
+    return False, True
 
 def run(leads: dict, messages: list, xlsx: DataFrame):
+    logging.basicConfig(filename='./LOG/app.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
     for name, number in leads.items():
         try:
-            lead_exists = verify_existing_lead(name, number, xlsx)
+            lead_exists, send = verify_existing_lead(name, number, xlsx)
         except Exception as e:
-            raise Exception(f"\nThere is no column named {e}\n")
+            raise Exception(f"There is no column named {e}")
         
-        send_message(messages, name, number)
+        if send:
+            send_message(messages, name, number)
 
-        if not lead_exists:
-            add_lead_to_xlsx(name, number, xlsx)
+            if not lead_exists:
+                add_lead_to_xlsx(name, number, xlsx)

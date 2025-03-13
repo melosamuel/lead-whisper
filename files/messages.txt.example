@@ -1,3 +1,6 @@
-Hello
-Hello, how are you?
-Hello, {name}
+any:Hello
+any:Hello, how are you?
+any:Hello, {name}
+morning:Hello, good morning
+afternoon:Hi, good afternoon
+evening:Hi, good evening

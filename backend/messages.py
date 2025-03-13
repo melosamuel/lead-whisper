@@ -20,9 +20,9 @@ def run(path: str) -> list:
         with open(path, 'r', encoding='UTF-8') as f:
             lines = f.readlines()
     except FileNotFoundError:
-        raise Exception(f"\nFile Not Found: {path}\n")
+        raise Exception(f"File Not Found: {path}")
 
     if not lines:
-        raise EmptyFileError(f"\nThe file '{path}' is empty!\n") 
+        raise EmptyFileError(f"The file '{path}' is empty!") 
 
     return lines
