@@ -12,23 +12,28 @@ class NotAValidContactError(Exception):
     def __init__(self, message):
         super().__init__(message)
 
-def add_lead_to_xlsx(name: str, phone_number: str, xlsx: DataFrame):
-    """Add the name and number of the contact to the excel file
+def add_lead_to_xlsx(data_frame: DataFrame, xlsx: DataFrame) -> DataFrame:
+    """Add the contacts from the provided DataFrame to the existing Excel file.
 
     Args:
-        name (str): The name of the contact
-        phone_number (str): The phone number of the contact
-        xlsx (DataFrame): The excel file
+        data_frame (DataFrame): A DataFrame containing the contacts to be added.
+        xlsx (DataFrame): The existing DataFrame read from the Excel file.
+
+    Returns:
+        DataFrame: The updated DataFrame after adding the new contacts.
     """
 
     PATH = "./files/feedback.xlsx"
 
-    new_row = pd.DataFrame({'Name': [name], 'Number': [phone_number], 'Send Message': ["Yes"]})
-    df = pd.concat([xlsx, new_row], ignore_index=True)
+    df = pd.concat([xlsx, data_frame], ignore_index=True)
 
-    df.to_excel(PATH, index=False)
+    try:
+        df.to_excel(PATH, index=False)
+        logging.info("Lead added to excel")
+    except Exception as ex:
+        logging.error(f"Error saving lead to excel: {ex}")
 
-    logging.info("Lead added to excel")
+    return df
 
 def get_daytime() -> str:
     """Returns the daytime
@@ -120,6 +125,12 @@ def verify_existing_lead(name: str, phone_number: str, xlsx: DataFrame) -> bool:
     return False, True
 
 def run(leads: dict, messages: list, xlsx: DataFrame):
+    leads_to_add = {
+        "Name": [],
+        "Number": [],
+        "Send Message": []
+    }
+
     for name, number in leads.items():
         try:
             lead_exists, send = verify_existing_lead(name, number, xlsx)
@@ -130,4 +141,12 @@ def run(leads: dict, messages: list, xlsx: DataFrame):
             send_message(messages, name, number)
 
             if not lead_exists:
-                add_lead_to_xlsx(name, number, xlsx)
+                leads_to_add["Name"].append(name)
+                leads_to_add["Number"].append(number)
+                leads_to_add["Send Message"].append("Yes")
+
+    if leads_to_add["Name"]:
+        leads_df = pd.DataFrame(leads_to_add)
+        xlsx = add_lead_to_xlsx(leads_df, xlsx)
+
+    return xlsx
